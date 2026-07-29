@@ -81,7 +81,7 @@
       padding: 8px;
       overflow-x: auto;
       align-items: center;
-      scroll-behavior: smooth; /* スムーズに最新写真へスクロール */
+      scroll-behavior: smooth;
     }
 
     .photo-wrapper {
@@ -184,6 +184,7 @@
     .btn.save { background-color: var(--accent-btn); }
     .btn.etsuran { background-color: var(--special-btn); }
 
+    /* capture属性を削除し、選択ダイアログをスマホ標準に任せる */
     #camera-input { display: none; }
 
     /* 閲覧モーダル */
@@ -377,8 +378,8 @@
     <button class="btn etsuran" onclick="openEtsuran()">閲覧</button>
   </div>
 
-  <!-- カメラ起動用 -->
-  <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handlePhotoSelect(event)">
+  <!-- スマホの標準ダイアログを起動させるinput（capture削除） -->
+  <input type="file" id="camera-input" accept="image/*" onchange="handlePhotoSelect(event)">
 
   <!-- 閲覧モーダル -->
   <div class="modal-panel" id="modal-panel">
@@ -412,14 +413,44 @@
     cameraInput.click();
   }
 
+  // スマホ向け画像自動リサイズ＆圧縮処理
   function handlePhotoSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = function(e) {
-      currentPhotos.push(e.target.result);
-      renderTopPhotoPreview();
+      const img = new Image();
+      img.onload = function() {
+        // スマホのメモリ・保存サイズに合わせて長辺最大1000pxに自動縮小
+        const maxDimension = 1000;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDimension) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          }
+        } else {
+          if (height > maxDimension) {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // JPEG 70%品質に軽量化
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        currentPhotos.push(compressedBase64);
+        renderTopPhotoPreview();
+      };
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
     cameraInput.value = "";
@@ -430,7 +461,6 @@
     renderTopPhotoPreview();
   }
 
-  /* 写真プレビュー描画 & 最新画像への自動スクロール処理 */
   function renderTopPhotoPreview() {
     if (currentPhotos.length === 0) {
       photoContainer.style.display = 'none';
@@ -452,7 +482,6 @@
       photoContainer.appendChild(wrapper);
     });
 
-    // 写真追加後、一番右（直前に撮影・追加した画像）へ自動移動
     setTimeout(() => {
       photoContainer.scrollTo({
         left: photoContainer.scrollWidth,
@@ -492,11 +521,15 @@
       memo: memoText
     };
 
-    savedDataList.unshift(newData);
-    localStorage.setItem('photoMemos', JSON.stringify(savedDataList));
-
-    alert("保存しました。");
-    clearAllInput();
+    try {
+      savedDataList.unshift(newData);
+      localStorage.setItem('photoMemos', JSON.stringify(savedDataList));
+      alert("保存しました。");
+      clearAllInput();
+    } catch (e) {
+      // 容量上限に達した場合のフォールバック
+      alert("保存容量の上限に達しました。不要なメモを削除してから再度保存してください。");
+    }
   }
 
   function openEtsuran() {
