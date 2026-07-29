@@ -18,6 +18,7 @@
       --text-secondary: #718096;
       
       --primary-btn: #4ea8de;
+      --secondary-btn: #4299e1;
       --accent-btn: #48bb78;
       --special-btn: #ed8936;
       --danger-btn: #f56565;
@@ -153,18 +154,32 @@
       color: #a0aec0;
     }
 
-    /* 下部：操作ボタンエリア */
+    /* 下部：操作ボタンエリア（2行レイアウトに拡大） */
     .action-section {
-      flex: 2;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      flex: 2.2;
+      display: flex;
+      flex-direction: column;
       gap: 8px;
+    }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      flex: 1;
+    }
+
+    .btn-row-bottom {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      flex: 1;
     }
 
     .btn {
       border: none;
       border-radius: 16px;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       cursor: pointer;
       display: flex;
@@ -181,11 +196,12 @@
     }
 
     .btn.camera { background-color: var(--primary-btn); }
+    .btn.gallery { background-color: var(--secondary-btn); }
     .btn.save { background-color: var(--accent-btn); }
     .btn.etsuran { background-color: var(--special-btn); }
 
-    /* capture属性を削除し、選択ダイアログをスマホ標準に任せる */
-    #camera-input { display: none; }
+    /* input要素の隠し */
+    #camera-input, #gallery-input { display: none; }
 
     /* 閲覧モーダル */
     .modal-panel {
@@ -362,7 +378,7 @@
 <div class="app-container">
   <!-- 上部：写真エリア -->
   <div class="photo-section">
-    <div class="photo-placeholder" id="photo-placeholder">📷 写真を撮影・追加</div>
+    <div class="photo-placeholder" id="photo-placeholder">📷 写真を撮影・選択</div>
     <div class="photo-container" id="photo-container" style="display: none;"></div>
   </div>
 
@@ -373,13 +389,20 @@
 
   <!-- 下部：操作ボタンエリア -->
   <div class="action-section">
-    <button class="btn camera" onclick="triggerCamera()">撮影 / 追加</button>
-    <button class="btn save" onclick="saveData()">保存</button>
-    <button class="btn etsuran" onclick="openEtsuran()">閲覧</button>
+    <div class="btn-row">
+      <button class="btn camera" onclick="triggerCamera()">📷 撮影</button>
+      <button class="btn gallery" onclick="triggerGallery()">🖼 アルバム</button>
+    </div>
+    <div class="btn-row-bottom">
+      <button class="btn save" onclick="saveData()">保存</button>
+      <button class="btn etsuran" onclick="openEtsuran()">閲覧</button>
+    </div>
   </div>
 
-  <!-- スマホの標準ダイアログを起動させるinput（capture削除） -->
-  <input type="file" id="camera-input" accept="image/*" onchange="handlePhotoSelect(event)">
+  <!-- カメラ直接起動用 -->
+  <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handlePhotoSelect(event)">
+  <!-- アルバム/ファイル選択用 -->
+  <input type="file" id="gallery-input" accept="image/*" onchange="handlePhotoSelect(event)">
 
   <!-- 閲覧モーダル -->
   <div class="modal-panel" id="modal-panel">
@@ -405,6 +428,7 @@
   let selectedIndexes = new Set();
 
   const cameraInput = document.getElementById('camera-input');
+  const galleryInput = document.getElementById('gallery-input');
   const photoContainer = document.getElementById('photo-container');
   const photoPlaceholder = document.getElementById('photo-placeholder');
   const memoInput = document.getElementById('memo-input');
@@ -413,7 +437,11 @@
     cameraInput.click();
   }
 
-  // スマホ向け画像自動リサイズ＆圧縮処理
+  function triggerGallery() {
+    galleryInput.click();
+  }
+
+  // 画像自動リサイズ＆圧縮処理（共通）
   function handlePhotoSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -422,7 +450,7 @@
     reader.onload = function(e) {
       const img = new Image();
       img.onload = function() {
-        // スマホのメモリ・保存サイズに合わせて長辺最大1000pxに自動縮小
+        // メモリ対策：長辺最大1000pxに自動縮小
         const maxDimension = 1000;
         let width = img.width;
         let height = img.height;
@@ -445,7 +473,7 @@
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        // JPEG 70%品質に軽量化
+        // JPEG 70%品質で容量を削減
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
         currentPhotos.push(compressedBase64);
         renderTopPhotoPreview();
@@ -453,7 +481,9 @@
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
-    cameraInput.value = "";
+    
+    // 入力値をリセット
+    event.target.value = "";
   }
 
   function removePhoto(index) {
@@ -527,7 +557,6 @@
       alert("保存しました。");
       clearAllInput();
     } catch (e) {
-      // 容量上限に達した場合のフォールバック
       alert("保存容量の上限に達しました。不要なメモを削除してから再度保存してください。");
     }
   }
