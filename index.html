@@ -22,6 +22,8 @@
       --accent-btn: #48bb78;
       --special-btn: #ed8936;
       --danger-btn: #f56565;
+      --audio-btn: #9f7aea;
+      --location-btn: #38b2ac;
       
       --border-color: #e2e8f0;
       --selected-border: #4ea8de;
@@ -50,13 +52,13 @@
     .app-container {
       width: 100%;
       max-width: 360px;
-      height: 700px;
+      height: 720px;
       background-color: var(--card-bg);
       border-radius: 28px;
       padding: 16px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
       box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
       border: 1px solid var(--border-color);
       position: relative;
@@ -65,7 +67,7 @@
 
     /* 上部：写真エリア */
     .photo-section {
-      flex: 4.5;
+      flex: 3.8;
       background-color: var(--display-bg);
       border-radius: 20px;
       border: 2px dashed #cbd5e0;
@@ -129,9 +131,43 @@
 
     /* 中央：メモ入力エリア */
     .memo-section {
-      flex: 3.5;
+      flex: 3.2;
       display: flex;
       flex-direction: column;
+      position: relative;
+    }
+
+    /* 録音インジケーター */
+    .recording-status {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background-color: #fff5f5;
+      border: 1px solid #feb2b2;
+      border-radius: 10px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: bold;
+      color: #e53e3e;
+    }
+
+    .recording-status.active {
+      display: flex;
+    }
+
+    .rec-dot {
+      width: 10px;
+      height: 10px;
+      background-color: #e53e3e;
+      border-radius: 50%;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0% { opacity: 1; }
+      50% { opacity: 0.2; }
+      100% { opacity: 1; }
     }
 
     .memo-input {
@@ -142,8 +178,8 @@
       border-radius: 16px;
       padding: 12px;
       color: var(--text-primary);
-      font-size: 15px;
-      line-height: 1.5;
+      font-size: 14px;
+      line-height: 1.4;
       resize: none;
       outline: none;
       user-select: text;
@@ -154,39 +190,32 @@
       color: #a0aec0;
     }
 
-    /* 下部：操作ボタンエリア（2行レイアウトに拡大） */
+    /* 下部：操作ボタンエリア（3行レイアウト拡張） */
     .action-section {
-      flex: 2.2;
+      flex: 3.0;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
 
     .btn-row {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-      flex: 1;
-    }
-
-    .btn-row-bottom {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
+      gap: 6px;
       flex: 1;
     }
 
     .btn {
       border: none;
-      border-radius: 16px;
-      font-size: 13px;
+      border-radius: 14px;
+      font-size: 12px;
       font-weight: 700;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       color: #ffffff;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      box-shadow: 0 3px 5px rgba(0,0,0,0.05);
       transition: transform 0.08s ease, filter 0.08s ease;
     }
 
@@ -197,8 +226,17 @@
 
     .btn.camera { background-color: var(--primary-btn); }
     .btn.gallery { background-color: var(--secondary-btn); }
+    .btn.audio { background-color: var(--audio-btn); }
+    .btn.audio.recording { background-color: #e53e3e; animation: pulse 1.5s infinite; }
+    .btn.location { background-color: var(--location-btn); }
     .btn.save { background-color: var(--accent-btn); }
     .btn.etsuran { background-color: var(--special-btn); }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.6); }
+      70% { box-shadow: 0 0 0 8px rgba(229, 62, 62, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0); }
+    }
 
     /* input要素の隠し */
     #camera-input, #gallery-input { display: none; }
@@ -215,7 +253,7 @@
       display: none;
       flex-direction: column;
       padding: 16px;
-      gap: 12px;
+      gap: 10px;
     }
 
     .modal-panel.active { display: flex; }
@@ -304,10 +342,56 @@
     }
 
     .memo-card-text {
-      font-size: 14px;
+      font-size: 13px;
       white-space: pre-wrap;
       word-break: break-all;
       color: var(--text-primary);
+    }
+
+    .memo-card-text a {
+      color: #3182ce;
+      text-decoration: underline;
+    }
+
+    /* 音声再生用バッジ */
+    .audio-player-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #edf2f7;
+      border: 1px solid #cbd5e0;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      color: #4a5568;
+      width: fit-content;
+      margin-top: 4px;
+      cursor: pointer;
+    }
+
+    .audio-player-badge.playing {
+      background: #e9d8fd;
+      border-color: #b794f4;
+      color: #553c9a;
+    }
+
+    /* 閲覧操作ボタン群 */
+    .modal-footer-btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .btn-edit-selected {
+      background-color: var(--secondary-btn);
+      color: #fff;
+      padding: 12px;
+      border-radius: 16px;
+      font-size: 14px;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
     }
 
     .btn-delete-selected {
@@ -384,6 +468,11 @@
 
   <!-- 中央：メモ入力エリア -->
   <div class="memo-section">
+    <!-- 録音ステータス表示 -->
+    <div class="recording-status" id="recording-status">
+      <div class="rec-dot"></div>
+      <span>録音中... <span id="rec-timer">00:00</span></span>
+    </div>
     <textarea class="memo-input" id="memo-input" placeholder="メモを入力..."></textarea>
   </div>
 
@@ -393,16 +482,20 @@
       <button class="btn camera" onclick="triggerCamera()">📷 撮影</button>
       <button class="btn gallery" onclick="triggerGallery()">🖼 アルバム</button>
     </div>
-    <div class="btn-row-bottom">
+    <div class="btn-row">
+      <button class="btn audio" id="btn-audio" onclick="toggleAudioRecording()">🎙 音声</button>
+      <button class="btn location" onclick="fetchLocation()">📍 現在地</button>
+    </div>
+    <div class="btn-row">
       <button class="btn save" onclick="saveData()">保存</button>
       <button class="btn etsuran" onclick="openEtsuran()">閲覧</button>
     </div>
   </div>
 
   <!-- カメラ直接起動用 -->
-  <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handlePhotoSelect(event)">
+  <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handlePhotoSelect(event, true)">
   <!-- アルバム/ファイル選択用 -->
-  <input type="file" id="gallery-input" accept="image/*" onchange="handlePhotoSelect(event)">
+  <input type="file" id="gallery-input" accept="image/*" onchange="handlePhotoSelect(event, false)">
 
   <!-- 閲覧モーダル -->
   <div class="modal-panel" id="modal-panel">
@@ -412,7 +505,10 @@
     </div>
     <div class="memo-list" id="memo-list"></div>
     
-    <button class="btn-delete-selected" onclick="deleteSelectedData()">削除</button>
+    <div class="modal-footer-btns">
+      <button class="btn-edit-selected" onclick="editSelectedData()">再編集</button>
+      <button class="btn-delete-selected" onclick="deleteSelectedData()">削除</button>
+    </div>
   </div>
 
   <!-- 写真拡大表示モーダル -->
@@ -424,8 +520,17 @@
 
 <script>
   let currentPhotos = [];
+  let currentAudioData = null; // 現在添付中の音声データ(Base64)
   let savedDataList = JSON.parse(localStorage.getItem('photoMemos')) || [];
   let selectedIndexes = new Set();
+  let editingId = null; // 再編集中のデータID
+
+  // 音声録音用変数
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let recordingInterval = null;
+  let recordingSeconds = 0;
+  let currentAudioInstance = null; // 閲覧モーダル再生中のAudioオブジェクト
 
   const cameraInput = document.getElementById('camera-input');
   const galleryInput = document.getElementById('gallery-input');
@@ -433,24 +538,28 @@
   const photoPlaceholder = document.getElementById('photo-placeholder');
   const memoInput = document.getElementById('memo-input');
 
-  function triggerCamera() {
-    cameraInput.click();
-  }
+  function triggerCamera() { cameraInput.click(); }
+  function triggerGallery() { galleryInput.click(); }
 
-  function triggerGallery() {
-    galleryInput.click();
-  }
-
-  // 画像自動リサイズ＆圧縮処理（共通）
-  function handlePhotoSelect(event) {
+  // 画像選択＆処理（isCamera: 撮影時スマホ保存を行うかフラグ）
+  function handlePhotoSelect(event, isCamera = false) {
     const file = event.target.files[0];
     if (!file) return;
+
+    // 【機能2対応】撮影時、スマホ本体ストレージ(ダウンロード等)へ並行保存
+    if (isCamera) {
+      const downloadLink = document.createElement('a');
+      downloadLink.href = URL.createObjectURL(file);
+      downloadLink.download = `photo_${Date.now()}.jpg`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    }
 
     const reader = new FileReader();
     reader.onload = function(e) {
       const img = new Image();
       img.onload = function() {
-        // メモリ対策：長辺最大1000pxに自動縮小
         const maxDimension = 1000;
         let width = img.width;
         let height = img.height;
@@ -473,7 +582,6 @@
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
 
-        // JPEG 70%品質で容量を削減
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
         currentPhotos.push(compressedBase64);
         renderTopPhotoPreview();
@@ -481,8 +589,6 @@
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
-    
-    // 入力値をリセット
     event.target.value = "";
   }
 
@@ -513,15 +619,91 @@
     });
 
     setTimeout(() => {
-      photoContainer.scrollTo({
-        left: photoContainer.scrollWidth,
-        behavior: 'smooth'
-      });
+      photoContainer.scrollTo({ left: photoContainer.scrollWidth, behavior: 'smooth' });
     }, 50);
+  }
+
+  // 【機能3対応】ボイスレコーダー機能
+  async function toggleAudioRecording() {
+    const btnAudio = document.getElementById('btn-audio');
+    const recStatus = document.getElementById('recording-status');
+    const recTimer = document.getElementById('rec-timer');
+
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      // 録音停止処理
+      mediaRecorder.stop();
+      clearInterval(recordingInterval);
+      btnAudio.classList.remove('recording');
+      btnAudio.innerText = "🎙 音声";
+      recStatus.classList.remove('active');
+    } else {
+      // 録音開始処理
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        
+        mediaRecorder.ondataavailable = event => {
+          if (event.data.size > 0) audioChunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            currentAudioData = reader.result;
+            memoInput.value += (memoInput.value ? "\n" : "") + "[🎙 音声データ添付あり]";
+          };
+          reader.readAsDataURL(audioBlob);
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        btnAudio.classList.add('recording');
+        btnAudio.innerText = "⏹ 録音停止";
+        recStatus.classList.add('active');
+
+        recordingSeconds = 0;
+        recTimer.innerText = "00:00";
+        recordingInterval = setInterval(() => {
+          recordingSeconds++;
+          const mins = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
+          const secs = String(recordingSeconds % 60).padStart(2, '0');
+          recTimer.innerText = `${mins}:${secs}`;
+        }, 1000);
+
+      } catch (err) {
+        alert("マイクの使用許可が必要です。");
+      }
+    }
+  }
+
+  // 【機能4対応】現在地取得機能
+  function fetchLocation() {
+    if (!navigator.geolocation) {
+      alert("お使いの端末は現在地取得に対応していません。");
+      return;
+    }
+
+    memoInput.value += (memoInput.value ? "\n" : "") + "📍 現在地を取得中...";
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const mapUrl = `https://maps.google.com/?q=${lat},${lng}`;
+        memoInput.value = memoInput.value.replace("📍 現在地を取得中...", `📍 現在地: ${mapUrl}`);
+      },
+      (error) => {
+        memoInput.value = memoInput.value.replace("📍 現在地を取得中...", "");
+        alert("現在地の取得に失敗しました。GPS設定を確認してください。");
+      }
+    );
   }
 
   function clearAllInput() {
     currentPhotos = [];
+    currentAudioData = null;
+    editingId = null;
     renderTopPhotoPreview();
     memoInput.value = "";
   }
@@ -539,22 +721,37 @@
   function saveData() {
     const memoText = memoInput.value.trim();
 
-    if (!memoText && currentPhotos.length === 0) {
-      alert("写真またはメモを入力してください。");
+    if (!memoText && currentPhotos.length === 0 && !currentAudioData) {
+      alert("写真、音声、またはメモを入力してください。");
       return;
     }
 
-    const newData = {
-      id: Date.now(),
-      date: getCurrentFormattedDate(),
-      photos: [...currentPhotos],
-      memo: memoText
-    };
+    if (editingId) {
+      // 【機能1対応】再編集時の上書き保存
+      const index = savedDataList.findIndex(item => item.id === editingId);
+      if (index !== -1) {
+        savedDataList[index] = {
+          ...savedDataList[index],
+          photos: [...currentPhotos],
+          memo: memoText,
+          audio: currentAudioData !== null ? currentAudioData : savedDataList[index].audio
+        };
+      }
+    } else {
+      // 新規保存
+      const newData = {
+        id: Date.now(),
+        date: getCurrentFormattedDate(),
+        photos: [...currentPhotos],
+        memo: memoText,
+        audio: currentAudioData
+      };
+      savedDataList.unshift(newData);
+    }
 
     try {
-      savedDataList.unshift(newData);
       localStorage.setItem('photoMemos', JSON.stringify(savedDataList));
-      alert("保存しました。");
+      alert(editingId ? "更新しました。" : "保存しました。");
       clearAllInput();
     } catch (e) {
       alert("保存容量の上限に達しました。不要なメモを削除してから再度保存してください。");
@@ -568,7 +765,17 @@
   }
 
   function closeEtsuran() {
+    if (currentAudioInstance) {
+      currentAudioInstance.pause();
+      currentAudioInstance = null;
+    }
     document.getElementById('modal-panel').classList.remove('active');
+  }
+
+  // テキスト内のURL（Google Maps等）を自動リンク化
+  function linkify(text) {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.replace(urlRegex, url => `<a href="${url}" target="_blank" onclick="event.stopPropagation()">${url}</a>`);
   }
 
   function renderList() {
@@ -585,7 +792,7 @@
       card.className = 'memo-card' + (isSelected ? ' selected' : '');
       
       card.onclick = (e) => {
-        if (e.target.tagName !== 'IMG') {
+        if (e.target.tagName !== 'IMG' && e.target.tagName !== 'A' && !e.target.classList.contains('audio-player-badge')) {
           toggleSelect(index);
         }
       };
@@ -597,13 +804,52 @@
           `</div>`;
       }
 
+      let audioHtml = '';
+      if (item.audio) {
+        audioHtml = `<div class="audio-player-badge" id="audio-badge-${index}" onclick="playAudio(event, '${index}')">▶ 🎙 音声再生</div>`;
+      }
+
       card.innerHTML = `
         <div class="memo-card-date">${item.date}</div>
         ${photosHtml}
-        <div class="memo-card-text">${item.memo || '(メモなし)'}</div>
+        <div class="memo-card-text">${item.memo ? linkify(item.memo) : '(メモなし)'}</div>
+        ${audioHtml}
       `;
       listContainer.appendChild(card);
     });
+  }
+
+  // 【機能3対応】音声再生コントロール
+  function playAudio(event, index) {
+    event.stopPropagation();
+    const item = savedDataList[index];
+    const badge = document.getElementById(`audio-badge-${index}`);
+
+    if (currentAudioInstance) {
+      currentAudioInstance.pause();
+      document.querySelectorAll('.audio-player-badge').forEach(b => {
+        b.classList.remove('playing');
+        b.innerText = "▶ 🎙 音声再生";
+      });
+      if (currentAudioInstance.dataset.index === String(index)) {
+        currentAudioInstance = null;
+        return;
+      }
+    }
+
+    const audio = new Audio(item.audio);
+    audio.dataset.index = index;
+    currentAudioInstance = audio;
+
+    badge.classList.add('playing');
+    badge.innerText = "⏹ 停止中...";
+
+    audio.play();
+    audio.onended = () => {
+      badge.classList.remove('playing');
+      badge.innerText = "▶ 🎙 音声再生";
+      currentAudioInstance = null;
+    };
   }
 
   function toggleSelect(index) {
@@ -615,6 +861,29 @@
     renderList();
   }
 
+  // 【機能1対応】再編集ボタンのアクション
+  function editSelectedData() {
+    if (selectedIndexes.size === 0) {
+      alert("再編集する項目を1つ選択してください。");
+      return;
+    }
+    if (selectedIndexes.size > 1) {
+      alert("再編集できるのは1行（BOX）のみです。");
+      return;
+    }
+
+    const selectedIdx = Array.from(selectedIndexes)[0];
+    const targetData = savedDataList[selectedIdx];
+
+    editingId = targetData.id;
+    currentPhotos = targetData.photos ? [...targetData.photos] : [];
+    currentAudioData = targetData.audio || null;
+    memoInput.value = targetData.memo || "";
+
+    renderTopPhotoPreview();
+    closeEtsuran();
+  }
+
   function showImageModal(event, photoSrc) {
     event.stopPropagation();
     const modal = document.getElementById('image-modal');
@@ -624,8 +893,7 @@
   }
 
   function closeImageModal() {
-    const modal = document.getElementById('image-modal');
-    modal.classList.remove('active');
+    document.getElementById('image-modal').classList.remove('active');
   }
 
   function deleteSelectedData() {
