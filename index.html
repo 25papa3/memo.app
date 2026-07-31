@@ -8,9 +8,6 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  
-  <!-- ピンチアウト拡大用ライブラリ (PinchZoom) -->
-  <script src="https://cdn.jsdelivr.net/npm/pinch-zoom-js@2.3.5/dist/pinch-zoom.min.js"></script>
 
   <style>
     :root {
@@ -266,7 +263,7 @@
       100% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0); }
     }
 
-    #camera-input, #gallery-input { display: none; }
+    #camera-input, #gallery-input, #video-input { display: none; }
 
     /* 閲覧モーダル */
     .modal-panel {
@@ -446,36 +443,41 @@
       margin-top: 40px;
     }
 
-    /* 写真拡大表示モーダル（ピンチアウト領域） */
+    /* ピンチアウト完全対応モーダル */
     .image-modal {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background-color: rgba(0, 0, 0, 0.9);
+      background-color: rgba(0, 0, 0, 0.95);
       z-index: 20;
       display: none;
-      flex-direction: column;
       justify-content: center;
       align-items: center;
       overflow: hidden;
+      touch-action: none;
     }
 
     .image-modal.active { display: flex; }
 
-    .pinch-zoom-container {
+    .pinch-viewport {
       width: 100%;
       height: 100%;
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      position: relative;
     }
 
-    .image-modal img {
+    .pinch-viewport img {
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
+      transform-origin: center center;
+      will-change: transform;
+      transition: transform 0.05s linear;
     }
 
     .btn-close-image {
@@ -510,18 +512,18 @@
 
   <!-- 中央：メモ入力エリア -->
   <div class="memo-section">
-    <!-- 録音・録画モード操作インジケーター -->
+    <!-- 録音・録画モード選択およびステータス表示 -->
     <div class="recording-status" id="recording-status">
       <!-- ① 分岐ボタン表示エリア -->
       <div class="mode-select-btns" id="mode-select-btns">
         <button class="btn-sub-select audio-opt" onclick="startAudioRecording()">🎙 音声開始</button>
-        <button class="btn-sub-select video-opt" onclick="startVideoRecording()">🎥 動画開始(最大10秒)</button>
+        <button class="btn-sub-select video-opt" onclick="triggerVideoCamera()">🎥 動画撮影</button>
       </div>
 
-      <!-- ② 実行中ステータス表示エリア -->
+      <!-- ② 実行中ステータス表示エリア (音声録音時) -->
       <div class="rec-indicator" id="rec-indicator" style="display: none;">
         <div class="rec-dot"></div>
-        <span id="rec-status-text">処理中...</span>
+        <span id="rec-status-text">● 録音中...</span>
         <span id="rec-timer">00:00</span>
       </div>
       <button id="btn-stop-rec" class="btn-close" style="display: none;" onclick="stopAudioRecording()">⏹ 停止</button>
@@ -537,7 +539,6 @@
       <button class="btn gallery" onclick="triggerGallery()">🖼 アルバム</button>
     </div>
     <div class="btn-row">
-      <!-- 改名：音声・動画ボタン -->
       <button class="btn audio" id="btn-audio-video" onclick="toggleAudioVideoMenu()">🎙/🎥 音声・動画</button>
       <button class="btn location" onclick="fetchLocation()">📍 現在地</button>
     </div>
@@ -547,8 +548,11 @@
     </div>
   </div>
 
+  <!-- カメラ・ギャラリー・動画呼び出し用 -->
   <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handlePhotoSelect(event, true)">
   <input type="file" id="gallery-input" accept="image/*" onchange="handlePhotoSelect(event, false)">
+  <!-- 標準カメラ機能を使った動画撮影（アウトカメラ起動） -->
+  <input type="file" id="video-input" accept="video/*" capture="environment" onchange="handleVideoSelect(event)">
 
   <!-- 閲覧モーダル -->
   <div class="modal-panel" id="modal-panel">
@@ -564,10 +568,10 @@
     </div>
   </div>
 
-  <!-- ピンチアウト対応 拡大表示モーダル -->
+  <!-- ピンチアウト拡大表示モーダル -->
   <div class="image-modal" id="image-modal">
     <button class="btn-close-image" onclick="closeImageModal()">✕</button>
-    <div class="pinch-zoom-container" id="pinch-zoom-container">
+    <div class="pinch-viewport" id="pinch-viewport">
       <img id="enlarged-image" src="" alt="拡大写真">
     </div>
   </div>
@@ -576,28 +580,28 @@
 <script>
   let currentPhotos = [];
   let currentAudioData = null;
-  let currentVideoData = null; // 動画データ用
+  let currentVideoData = null;
   let savedDataList = JSON.parse(localStorage.getItem('photoMemos')) || [];
   let selectedIndexes = new Set();
   let editingId = null;
 
-  // 録音・録画用
+  // 音声録音用
   let mediaRecorder = null;
   let audioChunks = [];
-  let videoChunks = [];
   let recordingInterval = null;
   let recordingSeconds = 0;
   let currentAudioInstance = null;
-  let pinchZoomInstance = null;
 
   const cameraInput = document.getElementById('camera-input');
   const galleryInput = document.getElementById('gallery-input');
+  const videoInput = document.getElementById('video-input');
   const photoContainer = document.getElementById('photo-container');
   const photoPlaceholder = document.getElementById('photo-placeholder');
   const memoInput = document.getElementById('memo-input');
 
   function triggerCamera() { cameraInput.click(); }
   function triggerGallery() { galleryInput.click(); }
+  function triggerVideoCamera() { videoInput.click(); }
 
   // 写真選択＆圧縮
   function handlePhotoSelect(event, isCamera = false) {
@@ -649,6 +653,21 @@
     event.target.value = "";
   }
 
+  // スマホ標準カメラでの動画撮影の取得処理
+  function handleVideoSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      currentVideoData = e.target.result;
+      memoInput.value += (memoInput.value ? "\n" : "") + "[🎥 動画データ添付あり]";
+      resetRecUI();
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  }
+
   function removePhoto(index) {
     currentPhotos.splice(index, 1);
     renderTopPhotoPreview();
@@ -680,7 +699,7 @@
     }, 50);
   }
 
-  /* --- ２ 「音声・動画」モード機能 --- */
+  /* --- 音声・動画メニュー操作 --- */
   function toggleAudioVideoMenu() {
     const recStatus = document.getElementById('recording-status');
     const modeSelect = document.getElementById('mode-select-btns');
@@ -701,7 +720,7 @@
     }
   }
 
-  // 音声録音開始
+  // 音声録音
   async function startAudioRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -722,72 +741,23 @@
       };
 
       mediaRecorder.start();
-      showRecStatus("● 録音中...", false);
+      
+      document.getElementById('mode-select-btns').style.display = 'none';
+      document.getElementById('rec-indicator').style.display = 'flex';
+      document.getElementById('btn-stop-rec').style.display = 'block';
+
+      recordingSeconds = 0;
+      document.getElementById('rec-timer').innerText = "00:00";
+      recordingInterval = setInterval(() => {
+        recordingSeconds++;
+        const mins = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
+        const secs = String(recordingSeconds % 60).padStart(2, '0');
+        document.getElementById('rec-timer').innerText = `${mins}:${secs}`;
+      }, 1000);
+
     } catch (err) {
       alert("マイクの使用許可が必要です。");
     }
-  }
-
-  // 動画撮影開始（10秒上限・超低解像度/高圧縮設定）
-  async function startVideoRecording() {
-    try {
-      // 解像度を640x360相当に落としてストレージを大幅節約
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { max: 15 } },
-        audio: true
-      });
-
-      videoChunks = [];
-      // 低ビットレート（250kbps）で圧縮率を最大化
-      const options = { mimeType: 'video/webm;codecs=vp8', videoBitsPerSecond: 250000 };
-      
-      try {
-        mediaRecorder = new MediaRecorder(stream, options);
-      } catch (e) {
-        mediaRecorder = new MediaRecorder(stream);
-      }
-
-      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) videoChunks.push(e.data); };
-      mediaRecorder.onstop = () => {
-        const videoBlob = new Blob(videoChunks, { type: 'video/mp4' });
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          currentVideoData = reader.result;
-          memoInput.value += (memoInput.value ? "\n" : "") + "[🎥 動画データ添付あり]";
-        };
-        reader.readAsDataURL(videoBlob);
-        stream.getTracks().forEach(t => t.stop());
-        resetRecUI();
-      };
-
-      mediaRecorder.start();
-      showRecStatus("🎥 動画撮影中...", true);
-    } catch (err) {
-      alert("カメラ・マイクの使用許可が必要です。");
-    }
-  }
-
-  function showRecStatus(statusText, isVideo) {
-    document.getElementById('mode-select-btns').style.display = 'none';
-    document.getElementById('rec-indicator').style.display = 'flex';
-    document.getElementById('btn-stop-rec').style.display = 'block';
-    document.getElementById('rec-status-text').innerText = statusText;
-
-    recordingSeconds = 0;
-    document.getElementById('rec-timer').innerText = "00:00";
-    
-    recordingInterval = setInterval(() => {
-      recordingSeconds++;
-      const mins = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
-      const secs = String(recordingSeconds % 60).padStart(2, '0');
-      document.getElementById('rec-timer').innerText = `${mins}:${secs}`;
-
-      // 10秒自動停止ルール
-      if (isVideo && recordingSeconds >= 10) {
-        stopAudioRecording();
-        alert("動画撮影は10秒上限に達したため自動終了しました。");
-      }
-    }, 1000);
   }
 
   function stopAudioRecording() {
@@ -799,7 +769,6 @@
 
   function resetRecUI() {
     document.getElementById('recording-status').classList.remove('active');
-    document.getElementById('btn-audio-video').classList.remove('active-mode');
   }
 
   // 現在地取得
@@ -1013,29 +982,104 @@
     closeEtsuran();
   }
 
-  /* --- １ ピンチアウト拡大表示機能 --- */
+  /* --- JavaScriptピュア実装（ライブラリ非依存）のピンチアウト/ズーム処理 --- */
+  const enlargedImg = document.getElementById('enlarged-image');
+  const pinchViewport = document.getElementById('pinch-viewport');
+
+  let scale = 1;
+  let lastScale = 1;
+  let startDistance = 0;
+  let posX = 0, posY = 0;
+  let startX = 0, startY = 0;
+  let isDragging = false;
+
+  function updateTransform() {
+    enlargedImg.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+  }
+
+  function resetZoom() {
+    scale = 1;
+    lastScale = 1;
+    posX = 0;
+    posY = 0;
+    updateTransform();
+  }
+
   function showImageModal(event, photoSrc) {
     event.stopPropagation();
-    const modal = document.getElementById('image-modal');
-    const img = document.getElementById('enlarged-image');
-    img.src = photoSrc;
-    modal.classList.add('active');
-
-    // ライブラリの初期化 (PinchZoom)
-    const el = document.getElementById('pinch-zoom-container');
-    if (pinchZoomInstance) {
-      pinchZoomInstance.destroy();
-    }
-    pinchZoomInstance = new PinchZoom(el, {
-      draggableUnzoomed: false,
-      minZoom: 1,
-      maxZoom: 4
-    });
+    enlargedImg.src = photoSrc;
+    resetZoom();
+    document.getElementById('image-modal').classList.add('active');
   }
 
   function closeImageModal() {
     document.getElementById('image-modal').classList.remove('active');
+    resetZoom();
   }
+
+  // タッチ距離計算
+  function getDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+
+  // タッチイベントの設定
+  pinchViewport.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      startDistance = getDistance(e.touches);
+      lastScale = scale;
+    } else if (e.touches.length === 1 && scale > 1) {
+      isDragging = true;
+      startX = e.touches[0].clientX - posX;
+      startY = e.touches[0].clientY - posY;
+    }
+  });
+
+  pinchViewport.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const currentDistance = getDistance(e.touches);
+      if (startDistance > 0) {
+        let newScale = lastScale * (currentDistance / startDistance);
+        scale = Math.min(Math.max(1, newScale), 5); // 拡大率 1倍〜5倍
+        updateTransform();
+      }
+    } else if (e.touches.length === 1 && isDragging && scale > 1) {
+      e.preventDefault();
+      posX = e.touches[0].clientX - startX;
+      posY = e.touches[0].clientY - startY;
+      updateTransform();
+    }
+  });
+
+  pinchViewport.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) {
+      startDistance = 0;
+    }
+    if (e.touches.length === 0) {
+      isDragging = false;
+      if (scale <= 1) {
+        resetZoom();
+      }
+    }
+  });
+
+  // ダブルタップで拡大・リセット
+  let lastTap = 0;
+  pinchViewport.addEventListener('touchend', (e) => {
+    const currentTime = new Date().getTime();
+    const tapLength = currentTime - lastTap;
+    if (tapLength < 300 && tapLength > 0 && e.touches.length === 0) {
+      if (scale > 1) {
+        resetZoom();
+      } else {
+        scale = 2.5;
+        updateTransform();
+      }
+    }
+    lastTap = currentTime;
+  });
 
   function deleteSelectedData() {
     if (savedDataList.length === 0) {
