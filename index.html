@@ -252,18 +252,11 @@
     .btn.camera { background-color: var(--primary-btn); }
     .btn.gallery { background-color: var(--secondary-btn); }
     .btn.audio { background-color: var(--audio-btn); }
-    .btn.audio.active-mode { background-color: #e53e3e; animation: pulse 1.5s infinite; }
     .btn.location { background-color: var(--location-btn); }
     .btn.save { background-color: var(--accent-btn); }
     .btn.etsuran { background-color: var(--special-btn); }
 
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.6); }
-      70% { box-shadow: 0 0 0 8px rgba(229, 62, 62, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0); }
-    }
-
-    #camera-input, #gallery-input, #video-input { display: none; }
+    #camera-input, #gallery-input { display: none; }
 
     /* 閲覧モーダル */
     .modal-panel {
@@ -377,7 +370,6 @@
       text-decoration: underline;
     }
 
-    /* 音声/動画再生用バッジ・プレイヤー */
     .media-player-badge {
       display: inline-flex;
       align-items: center;
@@ -499,6 +491,79 @@
       backdrop-filter: blur(4px);
       z-index: 30;
     }
+
+    /* 🎥 10秒動画撮影専用モーダル (リアルタイムカメラ画面) */
+    .video-camera-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #000;
+      z-index: 25;
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px;
+    }
+
+    .video-camera-modal.active { display: flex; }
+
+    .video-preview-container {
+      position: relative;
+      width: 100%;
+      height: 80%;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #1a202c;
+    }
+
+    .video-preview-container video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .video-timer-badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(229, 62, 62, 0.85);
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .video-controls {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 10px 0;
+    }
+
+    .btn-record-start {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: #e53e3e;
+      border: 4px solid #fff;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+
+    .btn-record-stop {
+      width: 64px;
+      height: 64px;
+      border-radius: 12px;
+      background: #e53e3e;
+      border: 4px solid #fff;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -517,10 +582,10 @@
       <!-- ① 分岐ボタン表示エリア -->
       <div class="mode-select-btns" id="mode-select-btns">
         <button class="btn-sub-select audio-opt" onclick="startAudioRecording()">🎙 音声開始</button>
-        <button class="btn-sub-select video-opt" onclick="triggerVideoCamera()">🎥 動画撮影</button>
+        <button class="btn-sub-select video-opt" onclick="openVideoCameraModal()">🎥 動画撮影(10秒制限)</button>
       </div>
 
-      <!-- ② 実行中ステータス表示エリア (音声録音時) -->
+      <!-- ② 音声録音時ステータス -->
       <div class="rec-indicator" id="rec-indicator" style="display: none;">
         <div class="rec-dot"></div>
         <span id="rec-status-text">● 録音中...</span>
@@ -548,11 +613,24 @@
     </div>
   </div>
 
-  <!-- カメラ・ギャラリー・動画呼び出し用 -->
   <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handlePhotoSelect(event, true)">
   <input type="file" id="gallery-input" accept="image/*" onchange="handlePhotoSelect(event, false)">
-  <!-- 標準カメラ機能を使った動画撮影（アウトカメラ起動） -->
-  <input type="file" id="video-input" accept="video/*" capture="environment" onchange="handleVideoSelect(event)">
+
+  <!-- 🎥 10秒動画撮影専用モーダル (カメラプレビュー付き) -->
+  <div class="video-camera-modal" id="video-camera-modal">
+    <div class="video-preview-container">
+      <video id="video-preview" autoplay playsinline muted></video>
+      <div class="video-timer-badge">
+        <div class="rec-dot"></div>
+        <span id="video-timer-text">00:10</span>
+      </div>
+    </div>
+    <div class="video-controls">
+      <button class="btn-close" onclick="closeVideoCameraModal()">キャンセル</button>
+      <button id="btn-video-rec-action" class="btn-record-start" onclick="toggleVideoRecording()"></button>
+      <div style="width: 70px;"></div>
+    </div>
+  </div>
 
   <!-- 閲覧モーダル -->
   <div class="modal-panel" id="modal-panel">
@@ -585,23 +663,34 @@
   let selectedIndexes = new Set();
   let editingId = null;
 
-  // 音声録音用
+  // メディアストリーム関連
   let mediaRecorder = null;
   let audioChunks = [];
+  let videoChunks = [];
   let recordingInterval = null;
   let recordingSeconds = 0;
+  let videoStream = null;
   let currentAudioInstance = null;
 
   const cameraInput = document.getElementById('camera-input');
   const galleryInput = document.getElementById('gallery-input');
-  const videoInput = document.getElementById('video-input');
   const photoContainer = document.getElementById('photo-container');
   const photoPlaceholder = document.getElementById('photo-placeholder');
   const memoInput = document.getElementById('memo-input');
 
   function triggerCamera() { cameraInput.click(); }
   function triggerGallery() { galleryInput.click(); }
-  function triggerVideoCamera() { videoInput.click(); }
+
+  // 全添付データ＆入力フィールドの完全初期化（バグ修正箇所）
+  function clearAllInput() {
+    currentPhotos = [];
+    currentAudioData = null;
+    currentVideoData = null;
+    editingId = null;
+    renderTopPhotoPreview();
+    memoInput.value = "";
+    resetRecUI();
+  }
 
   // 写真選択＆圧縮
   function handlePhotoSelect(event, isCamera = false) {
@@ -653,21 +742,6 @@
     event.target.value = "";
   }
 
-  // スマホ標準カメラでの動画撮影の取得処理
-  function handleVideoSelect(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      currentVideoData = e.target.result;
-      memoInput.value += (memoInput.value ? "\n" : "") + "[🎥 動画データ添付あり]";
-      resetRecUI();
-    };
-    reader.readAsDataURL(file);
-    event.target.value = "";
-  }
-
   function removePhoto(index) {
     currentPhotos.splice(index, 1);
     renderTopPhotoPreview();
@@ -699,7 +773,7 @@
     }, 50);
   }
 
-  /* --- 音声・動画メニュー操作 --- */
+  /* --- 音声・動画操作 --- */
   function toggleAudioVideoMenu() {
     const recStatus = document.getElementById('recording-status');
     const modeSelect = document.getElementById('mode-select-btns');
@@ -720,7 +794,7 @@
     }
   }
 
-  // 音声録音
+  // 音声録音開始
   async function startAudioRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -733,7 +807,10 @@
         const reader = new FileReader();
         reader.onloadend = () => {
           currentAudioData = reader.result;
-          memoInput.value += (memoInput.value ? "\n" : "") + "[🎙 音声データ添付あり]";
+          // 重複テキスト挿入防止
+          if (!memoInput.value.includes("[🎙 音声データ添付あり]")) {
+            memoInput.value += (memoInput.value ? "\n" : "") + "[🎙 音声データ添付あり]";
+          }
         };
         reader.readAsDataURL(audioBlob);
         stream.getTracks().forEach(t => t.stop());
@@ -771,6 +848,94 @@
     document.getElementById('recording-status').classList.remove('active');
   }
 
+  /* --- 🎥 10秒制限＆カメラ映像付き動画撮影機能 --- */
+  async function openVideoCameraModal() {
+    try {
+      // 背面メインカメラを指定・低解像度で容量節約
+      videoStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" }, width: { ideal: 640 }, height: { ideal: 360 } },
+        audio: true
+      }).catch(async () => {
+        // 背面カメラ固定が失敗した場合は通常指定
+        return await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 360 } }, audio: true });
+      });
+
+      const videoElement = document.getElementById('video-preview');
+      videoElement.srcObject = videoStream;
+      document.getElementById('video-timer-text').innerText = "00:10";
+      document.getElementById('video-camera-modal').classList.add('active');
+
+      const btnRec = document.getElementById('btn-video-rec-action');
+      btnRec.className = "btn-record-start";
+    } catch (err) {
+      alert("カメラおよびマイクのアクセスが拒否されました。");
+    }
+  }
+
+  function toggleVideoRecording() {
+    const btnRec = document.getElementById('btn-video-rec-action');
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      stopVideoRecording();
+    } else {
+      startVideoRecordingProcess();
+      btnRec.className = "btn-record-stop";
+    }
+  }
+
+  function startVideoRecordingProcess() {
+    videoChunks = [];
+    const options = { mimeType: 'video/webm;codecs=vp8', videoBitsPerSecond: 250000 };
+    try {
+      mediaRecorder = new MediaRecorder(videoStream, options);
+    } catch (e) {
+      mediaRecorder = new MediaRecorder(videoStream);
+    }
+
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) videoChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      const videoBlob = new Blob(videoChunks, { type: 'video/mp4' });
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        currentVideoData = reader.result;
+        if (!memoInput.value.includes("[🎥 動画データ添付あり]")) {
+          memoInput.value += (memoInput.value ? "\n" : "") + "[🎥 動画データ添付あり]";
+        }
+        closeVideoCameraModal();
+      };
+      reader.readAsDataURL(videoBlob);
+    };
+
+    mediaRecorder.start();
+    let timeLeft = 10; // 10秒カウントダウン制限
+    document.getElementById('video-timer-text').innerText = `00:${String(timeLeft).padStart(2, '0')}`;
+
+    recordingInterval = setInterval(() => {
+      timeLeft--;
+      document.getElementById('video-timer-text').innerText = `00:${String(timeLeft).padStart(2, '0')}`;
+      if (timeLeft <= 0) {
+        clearInterval(recordingInterval);
+        stopVideoRecording();
+      }
+    }, 1000);
+  }
+
+  function stopVideoRecording() {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+      clearInterval(recordingInterval);
+    }
+  }
+
+  function closeVideoCameraModal() {
+    if (videoStream) {
+      videoStream.getTracks().forEach(t => t.stop());
+      videoStream = null;
+    }
+    clearInterval(recordingInterval);
+    document.getElementById('video-camera-modal').classList.remove('active');
+    resetRecUI();
+  }
+
   // 現在地取得
   function fetchLocation() {
     if (!navigator.geolocation) {
@@ -791,15 +956,6 @@
         alert("現在地の取得に失敗しました。GPS設定を確認してください。");
       }
     );
-  }
-
-  function clearAllInput() {
-    currentPhotos = [];
-    currentAudioData = null;
-    currentVideoData = null;
-    editingId = null;
-    renderTopPhotoPreview();
-    memoInput.value = "";
   }
 
   function getCurrentFormattedDate() {
@@ -827,8 +983,8 @@
           ...savedDataList[index],
           photos: [...currentPhotos],
           memo: memoText,
-          audio: currentAudioData !== null ? currentAudioData : savedDataList[index].audio,
-          video: currentVideoData !== null ? currentVideoData : savedDataList[index].video
+          audio: currentAudioData,
+          video: currentVideoData
         };
       }
     } else {
@@ -846,7 +1002,7 @@
     try {
       localStorage.setItem('photoMemos', JSON.stringify(savedDataList));
       alert(editingId ? "更新しました。" : "保存しました。");
-      clearAllInput();
+      clearAllInput(); // 保存後は完全クリーンアップ
     } catch (e) {
       alert("保存容量の上限に達しました。不要なメモや動画を削除してから再度保存してください。");
     }
@@ -982,7 +1138,7 @@
     closeEtsuran();
   }
 
-  /* --- JavaScriptピュア実装（ライブラリ非依存）のピンチアウト/ズーム処理 --- */
+  /* --- ピンチアウト/ズーム処理 --- */
   const enlargedImg = document.getElementById('enlarged-image');
   const pinchViewport = document.getElementById('pinch-viewport');
 
@@ -1017,14 +1173,12 @@
     resetZoom();
   }
 
-  // タッチ距離計算
   function getDistance(touches) {
     const dx = touches[0].clientX - touches[1].clientX;
     const dy = touches[0].clientY - touches[1].clientY;
     return Math.hypot(dx, dy);
   }
 
-  // タッチイベントの設定
   pinchViewport.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
       startDistance = getDistance(e.touches);
@@ -1042,7 +1196,7 @@
       const currentDistance = getDistance(e.touches);
       if (startDistance > 0) {
         let newScale = lastScale * (currentDistance / startDistance);
-        scale = Math.min(Math.max(1, newScale), 5); // 拡大率 1倍〜5倍
+        scale = Math.min(Math.max(1, newScale), 5);
         updateTransform();
       }
     } else if (e.touches.length === 1 && isDragging && scale > 1) {
@@ -1054,18 +1208,13 @@
   });
 
   pinchViewport.addEventListener('touchend', (e) => {
-    if (e.touches.length < 2) {
-      startDistance = 0;
-    }
+    if (e.touches.length < 2) startDistance = 0;
     if (e.touches.length === 0) {
       isDragging = false;
-      if (scale <= 1) {
-        resetZoom();
-      }
+      if (scale <= 1) resetZoom();
     }
   });
 
-  // ダブルタップで拡大・リセット
   let lastTap = 0;
   pinchViewport.addEventListener('touchend', (e) => {
     const currentTime = new Date().getTime();
@@ -1093,6 +1242,7 @@
         savedDataList = savedDataList.filter((_, idx) => !selectedIndexes.has(idx));
         localStorage.setItem('photoMemos', JSON.stringify(savedDataList));
         selectedIndexes.clear();
+        clearAllInput(); // 削除後も入力をクリア
         renderList();
       }
       return;
@@ -1103,6 +1253,7 @@
       savedDataList = [];
       localStorage.removeItem('photoMemos');
       selectedIndexes.clear();
+      clearAllInput(); // 全削除後も入力をクリア
       renderList();
     }
   }
