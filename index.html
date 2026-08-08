@@ -26,6 +26,7 @@
       --location-btn: #38b2ac;
       --export-btn: #805ad5;
       --weblink-btn: #4299e1;
+      --paste-btn: #667eea;
       
       --border-color: #e2e8f0;
       --selected-border: #4ea8de;
@@ -67,7 +68,7 @@
       overflow: hidden;
     }
 
-    /* アプリヘッダー */
+    /* ヘッダー */
     .app-header {
       display: flex;
       align-items: center;
@@ -99,7 +100,7 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
-    /* 上部：写真エリア */
+    /* 写真エリア */
     .photo-section {
       flex: 3.6;
       background-color: var(--display-bg);
@@ -163,7 +164,7 @@
       font-weight: 500;
     }
 
-    /* 中央：メモ入力エリア */
+    /* メモ入力エリア */
     .memo-section {
       flex: 3.2;
       display: flex;
@@ -242,7 +243,7 @@
       -webkit-user-select: text;
     }
 
-    /* 下部：操作ボタンエリア */
+    /* 操作ボタンエリア */
     .action-section {
       flex: 3.5;
       display: flex;
@@ -259,6 +260,7 @@
 
     .btn-row-full {
       display: flex;
+      gap: 6px;
       flex: 1;
     }
 
@@ -280,6 +282,7 @@
     .btn:active { transform: scale(0.96); }
 
     .btn.weblink { background-color: var(--weblink-btn); }
+    .btn.paste { background-color: var(--paste-btn); }
     .btn.camera { background-color: var(--primary-btn); }
     .btn.gallery { background-color: var(--secondary-btn); }
     .btn.audio { background-color: var(--audio-btn); }
@@ -436,7 +439,7 @@
       margin-top: 40px;
     }
 
-    /* 安定化版ピンチアウトモーダル */
+    /* 安定版ピンチイン・アウト用モーダル */
     .image-modal {
       position: absolute;
       top: 0;
@@ -468,7 +471,7 @@
       max-height: 100%;
       object-fit: contain;
       will-change: transform;
-      transform-origin: 0 0;
+      transform-origin: center center;
     }
 
     .btn-close-image {
@@ -486,7 +489,7 @@
       z-index: 40;
     }
 
-    /* 動画撮影カメラモーダル */
+    /* 動画撮影モーダル */
     .video-camera-modal {
       position: absolute;
       top: 0;
@@ -593,9 +596,9 @@
 
   <!-- 下部：操作ボタンエリア -->
   <div class="action-section">
-    <!-- Webリンクボタン（撮影・アルバムの直上に配置） -->
     <div class="btn-row-full">
-      <button class="btn weblink" onclick="openWebLink()">🌐 Webリンク</button>
+      <button class="btn weblink" onclick="openWebLink()">🌐 Google検索</button>
+      <button class="btn paste" onclick="pasteFromClipboard()">📋 コピー連携</button>
     </div>
     <div class="btn-row">
       <button class="btn camera" onclick="triggerCamera()">📷 撮影</button>
@@ -644,7 +647,7 @@
     </div>
   </div>
 
-  <!-- 安定化ピンチアウトモーダル -->
+  <!-- 安定化ピンチイン・アウトモーダル -->
   <div class="image-modal" id="image-modal">
     <button class="btn-close-image" onclick="closeImageModal()">✕</button>
     <div class="pinch-viewport" id="pinch-viewport">
@@ -675,18 +678,41 @@
   const photoPlaceholder = document.getElementById('photo-placeholder');
   const memoInput = document.getElementById('memo-input');
 
-  /* １ Webリンク機能 */
+  /* 1. Web検索・コピー取り込み連携 */
   function openWebLink() {
     window.open('https://www.google.com', '_blank');
-    
-    setTimeout(() => {
-      const link = prompt("Web閲覧で取得したリンク先アドレス（URL）を入力・貼り付けしてください:");
-      if (link && link.trim() !== "") {
-        const trimmedLink = link.trim();
-        memoInput.value += (memoInput.value ? "\n" : "") + trimmedLink;
-      }
-    }, 500);
   }
+
+  async function pasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim() !== '') {
+        memoInput.value += (memoInput.value ? "\n" : "") + text.trim();
+        alert("クリップボードの内容を取り込みました。");
+      } else {
+        alert("クリップボードにテキストがありません。");
+      }
+    } catch (err) {
+      const fallbackText = prompt("リンク先URLまたはテキストを入力・貼り付けしてください:");
+      if (fallbackText && fallbackText.trim() !== "") {
+        memoInput.value += (memoInput.value ? "\n" : "") + fallbackText.trim();
+      }
+    }
+  }
+
+  // 別タブのWeb閲覧から本アプリ画面へ復帰した際、自動でクリップボードのURL検出・確認
+  window.addEventListener('focus', async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
+        if (!memoInput.value.includes(text.trim())) {
+          if (confirm("コピーしたURLを取り込みますか？\n" + text)) {
+            memoInput.value += (memoInput.value ? "\n" : "") + text.trim();
+          }
+        }
+      }
+    } catch (e) {}
+  });
 
   function triggerCamera() { cameraInput.click(); }
   function triggerGallery() { galleryInput.click(); }
@@ -777,7 +803,6 @@
     });
   }
 
-  /* バックアップデータ出力（JSON） */
   function exportDataJSON() {
     if (savedDataList.length === 0) {
       alert("出力するデータがありません。");
@@ -1134,30 +1159,30 @@
     closeEtsuran();
   }
 
-  /* ２ 訂正：安定化ピンチイン・ピンチアウト・移動機能 */
+  /* 2. 安定版ピンチイン・アウト・パン操作ロジック */
   const enlargedImg = document.getElementById('enlarged-image');
-  const pinchViewport = document.getElementById('pinch-viewport');
+  const viewport = document.getElementById('pinch-viewport');
 
   let scale = 1;
+  let panX = 0, panY = 0;
   let startDistance = 0;
-  let posX = 0, posY = 0;
-  let startX = 0, startY = 0;
-  let isDragging = false;
-  let pinchCenter = { x: 0, y: 0 };
+  let startScale = 1;
+  let startPanX = 0, startPanY = 0;
+  let touchStartX = 0, touchStartY = 0;
 
   function updateTransform() {
-    enlargedImg.style.transform = `translate(${posX}px, ${posY}px) scale(${scale})`;
+    enlargedImg.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
   }
 
   function resetZoom() {
     scale = 1;
-    posX = 0;
-    posY = 0;
+    panX = 0;
+    panY = 0;
     updateTransform();
   }
 
   function showImageModal(event, photoSrc) {
-    event.stopPropagation();
+    if(event) event.stopPropagation();
     enlargedImg.src = photoSrc;
     resetZoom();
     document.getElementById('image-modal').classList.add('active');
@@ -1168,85 +1193,44 @@
     resetZoom();
   }
 
-  function getDistance(touches) {
-    return Math.hypot(
-      touches[0].clientX - touches[1].clientX,
-      touches[0].clientY - touches[1].clientY
-    );
-  }
-
-  function getMidpoint(touches) {
-    return {
-      x: (touches[0].clientX + touches[1].clientX) / 2,
-      y: (touches[0].clientY + touches[1].clientY) / 2
-    };
-  }
-
-  pinchViewport.addEventListener('touchstart', (e) => {
-    const rect = pinchViewport.getBoundingClientRect();
+  viewport.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
-      startDistance = getDistance(e.touches);
-      const mid = getMidpoint(e.touches);
-      pinchCenter = {
-        x: mid.x - rect.left,
-        y: mid.y - rect.top
-      };
-    } else if (e.touches.length === 1 && scale > 1) {
-      isDragging = true;
-      startX = e.touches[0].clientX - posX;
-      startY = e.touches[0].clientY - posY;
+      startDistance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      startScale = scale;
+    } else if (e.touches.length === 1) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      startPanX = panX;
+      startPanY = panY;
     }
   }, { passive: false });
 
-  pinchViewport.addEventListener('touchmove', (e) => {
+  viewport.addEventListener('touchmove', (e) => {
     e.preventDefault();
-    const rect = pinchViewport.getBoundingClientRect();
-
     if (e.touches.length === 2 && startDistance > 0) {
-      const currentDistance = getDistance(e.touches);
-      const newScale = Math.min(Math.max(1, scale * (currentDistance / startDistance)), 5);
-      
-      const mid = getMidpoint(e.touches);
-      const currentCenter = {
-        x: mid.x - rect.left,
-        y: mid.y - rect.top
-      };
-
-      // ピンチの中心点に合わせて座標位置を再計算
-      posX = currentCenter.x - (currentCenter.x - posX) * (newScale / scale);
-      posY = currentCenter.y - (currentCenter.y - posY) * (newScale / scale);
-      scale = newScale;
-
-      startDistance = currentDistance;
+      const currentDistance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      scale = Math.min(Math.max(1, startScale * (currentDistance / startDistance)), 4);
       updateTransform();
-    } else if (e.touches.length === 1 && isDragging && scale > 1) {
-      posX = e.touches[0].clientX - startX;
-      posY = e.touches[0].clientY - startY;
+    } else if (e.touches.length === 1 && scale > 1) {
+      const deltaX = e.touches[0].clientX - touchStartX;
+      const deltaY = e.touches[0].clientY - touchStartY;
+      panX = startPanX + deltaX;
+      panY = startPanY + deltaY;
       updateTransform();
     }
   }, { passive: false });
 
-  pinchViewport.addEventListener('touchend', (e) => {
+  viewport.addEventListener('touchend', (e) => {
     if (e.touches.length < 2) startDistance = 0;
-    if (e.touches.length === 0) {
-      isDragging = false;
-      if (scale <= 1) resetZoom();
+    if (scale <= 1) {
+      resetZoom();
     }
-  });
-
-  let lastTap = 0;
-  pinchViewport.addEventListener('touchend', (e) => {
-    const currentTime = new Date().getTime();
-    if (currentTime - lastTap < 300 && e.touches.length === 0) {
-      if (scale > 1) resetZoom();
-      else { 
-        scale = 2.5; 
-        posX = -pinchViewport.clientWidth * 0.75;
-        posY = -pinchViewport.clientHeight * 0.75;
-        updateTransform(); 
-      }
-    }
-    lastTap = currentTime;
   });
 
   function deleteSelectedData() {
