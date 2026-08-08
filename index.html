@@ -385,6 +385,11 @@
       word-break: break-all;
     }
 
+    .memo-card-text a {
+      color: #3182ce;
+      text-decoration: underline;
+    }
+
     .media-player-badge {
       display: inline-flex;
       align-items: center;
@@ -439,7 +444,7 @@
       margin-top: 40px;
     }
 
-    /* 安定版ピンチイン・アウト用モーダル */
+    /* ピンチイン・アウト用モーダル */
     .image-modal {
       position: absolute;
       top: 0;
@@ -647,7 +652,7 @@
     </div>
   </div>
 
-  <!-- 安定化ピンチイン・アウトモーダル -->
+  <!-- ピンチイン・アウトモーダル -->
   <div class="image-modal" id="image-modal">
     <button class="btn-close-image" onclick="closeImageModal()">✕</button>
     <div class="pinch-viewport" id="pinch-viewport">
@@ -678,17 +683,17 @@
   const photoPlaceholder = document.getElementById('photo-placeholder');
   const memoInput = document.getElementById('memo-input');
 
-  /* 1. Web検索・コピー取り込み連携 */
+  /* ① Web検索 */
   function openWebLink() {
     window.open('https://www.google.com', '_blank');
   }
 
+  /* ③ コピー連携（ボタン押下時のみ取り込み実行） */
   async function pasteFromClipboard() {
     try {
       const text = await navigator.clipboard.readText();
       if (text && text.trim() !== '') {
         memoInput.value += (memoInput.value ? "\n" : "") + text.trim();
-        alert("クリップボードの内容を取り込みました。");
       } else {
         alert("クリップボードにテキストがありません。");
       }
@@ -700,23 +705,10 @@
     }
   }
 
-  // 別タブのWeb閲覧から本アプリ画面へ復帰した際、自動でクリップボードのURL検出・確認
-  window.addEventListener('focus', async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
-        if (!memoInput.value.includes(text.trim())) {
-          if (confirm("コピーしたURLを取り込みますか？\n" + text)) {
-            memoInput.value += (memoInput.value ? "\n" : "") + text.trim();
-          }
-        }
-      }
-    } catch (e) {}
-  });
-
   function triggerCamera() { cameraInput.click(); }
   function triggerGallery() { galleryInput.click(); }
 
+  /* ④ 保存時・入力完了時の仮置きクリア処理 */
   function clearAllInput() {
     currentPhotos = [];
     currentAudioData = null;
@@ -1007,6 +999,7 @@
     return `${y}.${m}.${d} ${hh}:${mm}`;
   }
 
+  /* ④ 「保存」ボタン押下時 */
   function saveData() {
     const memoText = memoInput.value.trim();
 
@@ -1041,12 +1034,13 @@
     try {
       localStorage.setItem('photoMemos', JSON.stringify(savedDataList));
       alert(editingId ? "更新しました。" : "保存しました。");
-      clearAllInput();
+      clearAllInput(); // 入力エリア・仮置き情報をすべて消去
     } catch (e) {
       alert("保存容量の上限に達しました。不要なデータを削除するか、「出力」でPCへ移行してください。");
     }
   }
 
+  /* ⑤ 「閲覧」ボタン押下時 */
   function openEtsuran() {
     selectedIndexes.clear();
     renderList();
@@ -1159,7 +1153,7 @@
     closeEtsuran();
   }
 
-  /* 2. 安定版ピンチイン・アウト・パン操作ロジック */
+  /* ピンチイン・アウト・パン操作ロジック */
   const enlargedImg = document.getElementById('enlarged-image');
   const viewport = document.getElementById('pinch-viewport');
 
